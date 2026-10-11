@@ -1,5 +1,6 @@
 """Product search contracts and configurable Milvus field mapping."""
 
+import logging
 import os
 from typing import Literal
 from urllib.parse import urlsplit
@@ -7,6 +8,9 @@ from urllib.parse import urlsplit
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from agents.stylist.schema import OutfitItem, OutfitPlan
+
+
+logger = logging.getLogger(__name__)
 
 
 class MilvusSchemaMapping(BaseModel):
@@ -27,11 +31,13 @@ class MilvusSchemaMapping(BaseModel):
     @field_validator("*")
     @classmethod
     def valid_identifier(cls, value: str) -> str:
+        logger.info("function_start function=MilvusSchemaMapping.valid_identifier")
         if not value.replace("_", "").isalnum() or value[0].isdigit():
             raise ValueError(f"invalid Milvus field identifier: {value}")
         return value
 
     def required_fields(self) -> set[str]:
+        logger.info("function_start function=MilvusSchemaMapping.required_fields")
         return set(self.model_dump().values())
 
 
@@ -63,6 +69,7 @@ class Product(BaseModel):
     @field_validator("image_url")
     @classmethod
     def valid_image_url(cls, value: str | None) -> str | None:
+        logger.info("function_start function=Product.valid_image_url")
         if value is None:
             return None
         parsed = urlsplit(value)

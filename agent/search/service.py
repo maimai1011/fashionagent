@@ -1,6 +1,7 @@
 """Concurrent semantic product search with stable outfit-item association."""
 
 import asyncio
+import logging
 import os
 
 from agents.stylist.schema import OutfitItem
@@ -10,6 +11,9 @@ from search.repository import MilvusProductRepository
 from search.schema import OutfitItemMatch, ProductSearchResult, SearchRequest
 
 
+logger = logging.getLogger(__name__)
+
+
 class ProductSearchService:
     def __init__(
         self,
@@ -17,6 +21,7 @@ class ProductSearchService:
         embedding: EmbeddingProvider | None = None,
         max_concurrency: int | None = None,
     ) -> None:
+        logger.info("function_start function=ProductSearchService.__init__")
         self.repository = repository or MilvusProductRepository()
         self.embedding = embedding or SentenceTransformerEmbedding()
         concurrency = max_concurrency or int(os.getenv("MILVUS_MAX_CONCURRENCY", "4"))
@@ -24,12 +29,17 @@ class ProductSearchService:
 
     @staticmethod
     def _query(item: OutfitItem) -> str:
+        logger.info("function_start function=ProductSearchService._query")
         return (
             f"{item.category}: {item.item_name}; color {item.color}; "
             f"material {item.material}; fit {item.fit}"
         )
 
     async def search(self, request: SearchRequest) -> ProductSearchResult:
+        logger.info(
+            "function_start function=ProductSearchService.search item_count=%d",
+            len(request.outfit.items),
+        )
         selected = [
             item for item in request.outfit.items
             if not request.outfit_item_ids or item.outfit_item_id in request.outfit_item_ids
@@ -42,6 +52,10 @@ class ProductSearchService:
         vectors = await self.embedding.embed([self._query(item) for item in selected])
 
         async def one(item: OutfitItem, vector: list[float]) -> OutfitItemMatch:
+            logger.info(
+                "function_start function=ProductSearchService.search.one item_id=%s",
+                item.outfit_item_id,
+            )
             async with self._semaphore:
                 products = await self.repository.search(item, vector, constraints, request.top_k)
                 return OutfitItemMatch(
@@ -55,7 +69,9 @@ class ProductSearchService:
         return ProductSearchResult(outfit_name=request.outfit.outfit_name, matches=matches)
 
     async def validate(self) -> None:
+        logger.info("function_start function=ProductSearchService.validate")
         await self.repository.validate()
 
     def close(self) -> None:
+        logger.info("function_start function=ProductSearchService.close")
         self.repository.close()

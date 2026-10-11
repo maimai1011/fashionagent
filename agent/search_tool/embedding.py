@@ -1,5 +1,6 @@
 
 import asyncio
+import logging
 from threading import Lock
 
 from sentence_transformers import SentenceTransformer
@@ -7,9 +8,13 @@ from sentence_transformers import SentenceTransformer
 from search.schema import FashionItem
 
 
+logger = logging.getLogger(__name__)
+
+
 class EmbeddingService:
 
     def __init__(self, model_name: str):
+        logger.info("function_start function=EmbeddingService.__init__")
         self.model_name = model_name
         self.model = SentenceTransformer(model_name)
         self._lock = Lock()
@@ -17,6 +22,7 @@ class EmbeddingService:
         self.dimension = self.model.get_sentence_embedding_dimension()
 
     def _encode(self, texts: list[str]) -> list[list[float]]:
+        logger.info("function_start function=EmbeddingService._encode count=%d", len(texts))
         # Serialize access to the shared model for predictable
         # memory usage. Scale with separate workers if needed.
         with self._lock:
@@ -32,6 +38,7 @@ class EmbeddingService:
         self,
         items: list[FashionItem],
     ) -> list[list[float]]:
+        logger.info("function_start function=EmbeddingService.embed_items count=%d", len(items))
 
         queries = []
 

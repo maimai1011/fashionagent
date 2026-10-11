@@ -37,6 +37,7 @@ def authenticated_user(
     x_user_id: Annotated[str, Header(min_length=1)],
     authorization: Annotated[str | None, Header()] = None,
 ) -> str:
+    logger.info("function_start function=authenticated_user")
     try:
         configured_users = json.loads(os.getenv("APP_USER_TOKENS_JSON") or "{}")
     except json.JSONDecodeError as exc:
@@ -52,6 +53,7 @@ def authenticated_user(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info("function_start function=lifespan")
     product_search = ProductSearchService()
     try:
         if os.getenv("VALIDATE_MILVUS_ON_STARTUP", "true").lower() == "true":
@@ -74,6 +76,7 @@ _request_times: defaultdict[str, deque[float]] = defaultdict(deque)
 
 @app.middleware("http")
 async def rate_limit(request: Request, call_next):
+    logger.info("function_start function=rate_limit path=%s", request.url.path)
     if request.url.path == "/health":
         return await call_next(request)
     identity = request.client.host if request.client else "unknown"
@@ -89,6 +92,7 @@ async def rate_limit(request: Request, call_next):
 
 @app.middleware("http")
 async def request_context(request: Request, call_next):
+    logger.info("function_start function=request_context path=%s", request.url.path)
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     request_token = request_id_var.set(request_id)
     started = time.perf_counter()
@@ -107,6 +111,7 @@ async def request_context(request: Request, call_next):
 
 @app.get("/health")
 async def health() -> dict[str, str]:
+    logger.info("function_start function=health")
     return {"status": "ok"}
 
 
@@ -116,6 +121,7 @@ async def chat(
     request: Request,
     user_id: Annotated[str, Depends(authenticated_user)],
 ) -> ChatResponse:
+    logger.info("function_start function=chat")
     try:
         return await request.app.state.fashion.chat(
             user_id=user_id,

@@ -29,12 +29,14 @@ class ChatResponse(BaseModel):
 
 class FashionApplication:
     def __init__(self, agent: Any, config: Settings = settings) -> None:
+        logger.info("function_start function=FashionApplication.__init__")
         self.agent = agent
         self.config = config
         self._locks: WeakValueDictionary[str, asyncio.Lock] = WeakValueDictionary()
 
     @staticmethod
     def _session_key(user_id: str, thread_id: str) -> str:
+        logger.info("function_start function=FashionApplication._session_key")
         if not user_id.strip() or not thread_id.strip():
             raise ValueError("user_id and thread_id are required")
         return f"{user_id.strip()}::{thread_id.strip()}"
@@ -47,6 +49,7 @@ class FashionApplication:
         *,
         resume: bool = False,
     ) -> ChatResponse:
+        logger.info("function_start function=FashionApplication.chat")
         if not message.strip():
             raise ValueError("message cannot be empty")
         session = self._session_key(user_id, thread_id)
@@ -96,6 +99,7 @@ class FashionApplication:
 
     @staticmethod
     def _serialize(thread_id: str, result: dict[str, Any]) -> ChatResponse:
+        logger.info("function_start function=FashionApplication._serialize")
         interrupts = result.get("__interrupt__", ())
         if interrupts:
             value = interrupts[0].value

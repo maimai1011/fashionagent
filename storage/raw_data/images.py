@@ -30,6 +30,7 @@ class StoredImage:
 
 
 def _required_env(name: str) -> str:
+    logger.info("function_start function=raw_data.images._required_env")
     value = os.getenv(name)
     if not value:
         raise RuntimeError(f"{name} environment variable is not set")
@@ -48,6 +49,7 @@ def insert_image(
     The user must already exist in ``user_profiles``. If the database insert
     fails, the uploaded MinIO object is removed to avoid leaving orphan data.
     """
+    logger.info("function_start function=insert_image")
     clean_user_id = user_id.strip()
     clean_filename = Path(original_filename).name
     if not clean_user_id:

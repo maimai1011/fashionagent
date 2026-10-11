@@ -1,9 +1,13 @@
+import logging
+
 import mlflow.pyfunc
 from PIL import Image
 import numpy as np
 import torch
 from transformers import CLIPProcessor, CLIPModel
 
+
+logger = logging.getLogger(__name__)
 
 class ClothingModel(mlflow.pyfunc.PythonModel):
     GARMENT_LABELS = [
@@ -23,6 +27,7 @@ class ClothingModel(mlflow.pyfunc.PythonModel):
     ]
 
     def load_context(self, context):
+        logger.info("function_start function=ClothingModel.load_context")
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
         self.model = CLIPModel.from_pretrained(
@@ -32,7 +37,9 @@ class ClothingModel(mlflow.pyfunc.PythonModel):
         self.processor = CLIPProcessor.from_pretrained(
             "openai/clip-vit-base-patch32"
         )
+
     def predict(self, context, model_input):
+        logger.info("function_start function=ClothingModel.predict")
         if isinstance(model_input, str):
             image = Image.open(model_input).convert("RGB")
         else:
@@ -52,6 +59,7 @@ class ClothingModel(mlflow.pyfunc.PythonModel):
         return emb.tolist()
 
     def classify_garment_type(self, image, labels=None):
+        logger.info("function_start function=ClothingModel.classify_garment_type")
         if isinstance(image, str):
             image = Image.open(image).convert("RGB")
         else:
@@ -75,6 +83,7 @@ class ClothingModel(mlflow.pyfunc.PythonModel):
         return candidate_labels[best_idx], float(probs[best_idx].item())
 
     def get_embedding_dim(self):
+        logger.info("function_start function=ClothingModel.get_embedding_dim")
         sample = Image.new("RGB", (224, 224), color="black")
         arr = np.asarray(self.predict(None, sample), dtype="float32")
         arr = np.squeeze(arr)

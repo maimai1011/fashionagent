@@ -10,6 +10,7 @@ from .query import POSTGRES_STATEMENTS
 
 
 def _required_env(name: str) -> str:
+    logging.info("function_start function=setup.__main__._required_env")
     value = os.getenv(name)
     if not value:
         raise RuntimeError(f"{name} environment variable is not set")
@@ -22,6 +23,7 @@ def main() -> None:
         level=os.getenv("LOG_LEVEL", "INFO").upper(),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
+    logging.info("function_start function=setup.__main__.main")
     bucket_name = _required_env("MINIO_BUCKET")
 
     logging.info("Initializing Postgres")

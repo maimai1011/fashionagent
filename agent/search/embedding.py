@@ -7,6 +7,7 @@ import time
 from typing import Protocol
 
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -17,6 +18,7 @@ class EmbeddingProvider(Protocol):
 
 class SentenceTransformerEmbedding:
     def __init__(self) -> None:
+        logger.info("function_start function=SentenceTransformerEmbedding.__init__")
         self.model_name = os.getenv("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
         self.query_prefix = os.getenv("EMBEDDING_QUERY_PREFIX", "")
         self.normalize = os.getenv("EMBEDDING_NORMALIZE", "true").lower() == "true"
@@ -28,6 +30,7 @@ class SentenceTransformerEmbedding:
         )
 
     async def _get_model(self):
+        logger.info("function_start function=SentenceTransformerEmbedding._get_model")
         async with self._lock:
             if self._model is None:
                 from sentence_transformers import SentenceTransformer
@@ -42,6 +45,10 @@ class SentenceTransformerEmbedding:
         return self._model
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
+        logger.info(
+            "function_start function=SentenceTransformerEmbedding.embed count=%d",
+            len(texts),
+        )
         started = time.perf_counter()
         model = await self._get_model()
         async with self._encode_limit:

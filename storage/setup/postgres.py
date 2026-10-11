@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 def _required_env(name: str) -> str:
+    logger.info("function_start function=setup.postgres._required_env")
     value = os.getenv(name)
     if not value:
         raise RuntimeError(f"{name} environment variable is not set")
@@ -21,6 +22,7 @@ def _required_env(name: str) -> str:
 def get_connection() -> Any:
     """Create a psycopg2 connection from environment configuration."""
 
+    logger.info("function_start function=setup.postgres.get_connection")
     logger.info("Connecting to Postgres")
     return psycopg2.connect(
         host=_required_env("POSTGRES_HOST"),
@@ -33,6 +35,7 @@ def get_connection() -> Any:
 
 def create_tables(query: str) -> None:
     """Execute a CREATE TABLE statement in a managed transaction."""
+    logger.info("function_start function=setup.postgres.create_tables")
     if not query or not query.strip():
         raise ValueError("query cannot be empty")
 
@@ -51,6 +54,7 @@ def create_tables(query: str) -> None:
 
 def initialize_postgres(statements: Iterable[str]) -> None:
     """Create all configured tables in one transaction."""
+    logger.info("function_start function=setup.postgres.initialize_postgres")
     queries = tuple(statements)
     if not queries:
         raise ValueError("at least one CREATE TABLE statement is required")

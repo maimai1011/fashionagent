@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 from pydantic import ValidationError
 
@@ -13,13 +15,14 @@ def test_structured_output_requires_unique_ids(outfit):
         OutfitPlan.model_validate(data)
 
 
-def test_skill_loading_is_progressive_and_useful():
-    basic = load_fashion_skill({"color": "navy"})
-    occasion = load_fashion_skill({"occasion": "work"})
-    assert "Color matching" in basic
-    assert "Outfit composition" in basic
-    assert "Occasion guidelines" not in basic
-    assert "Occasion guidelines" in occasion
+def test_skill_loading_includes_all_guidance(caplog):
+    with caplog.at_level(logging.INFO):
+        skill = load_fashion_skill()
+    assert "Color matching" in skill
+    assert "Outfit composition" in skill
+    assert "Occasion guidelines" in skill
+    assert "Constraints and revisions" in skill
+    assert "function_start function=load_fashion_skill" in caplog.text
 
 
 @pytest.mark.asyncio

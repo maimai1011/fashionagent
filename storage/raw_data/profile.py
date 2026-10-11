@@ -1,10 +1,14 @@
 """Create a user's one-time registration profile."""
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime
 
 from raw_data.query import INSERT_USER_PROFILE
 from setup.postgres import get_connection
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -28,6 +32,7 @@ def insert_user_profile(
     preferences: str | None = None,
 ) -> UserProfile:
     """Insert a profile once and reject an already registered ``user_id``."""
+    logger.info("function_start function=insert_user_profile")
     clean_user_id = user_id.strip()
     clean_name = name.strip() if name else None
     clean_email = email.strip().lower() if email else None

@@ -1,5 +1,6 @@
 """Gradio chat and catalog UI backed by the Fashion API."""
 
+import logging
 import os
 from pathlib import Path
 from uuid import uuid4
@@ -11,9 +12,11 @@ from fashion_agent.config import settings
 
 
 MISSING_IMAGE = str(Path(__file__).with_name("missing_image.svg"))
+logger = logging.getLogger(__name__)
 
 
 def _render_outfit(outfit: dict | None) -> str:
+    logger.info("function_start function=_render_outfit")
     if not outfit:
         return "### Outfit\nNo outfit yet."
     lines = [
@@ -32,6 +35,7 @@ def _render_outfit(outfit: dict | None) -> str:
 
 
 def _render_products(matches: dict) -> tuple[list[tuple[str, str]], str]:
+    logger.info("function_start function=_render_products match_count=%d", len(matches))
     gallery: list[tuple[str, str]] = []
     details: list[str] = []
     for match in matches.values():
@@ -50,6 +54,7 @@ def _render_products(matches: dict) -> tuple[list[tuple[str, str]], str]:
 
 
 async def send_message(message, history, user_id, thread_id, awaiting_clarification):
+    logger.info("function_start function=send_message")
     if not message.strip():
         return (
             history, "", gr.skip(), gr.skip(), gr.skip(),
@@ -118,6 +123,7 @@ with gr.Blocks(title="Fashion Assistant") as demo:
 
 
 def launch() -> None:
+    logger.info("function_start function=launch")
     auth = None
     if settings.ui_auth_user and settings.ui_auth_password:
         auth = (settings.ui_auth_user, settings.ui_auth_password)

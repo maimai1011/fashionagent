@@ -25,7 +25,7 @@ directly. Catalog fields, prices, stock, IDs, and images only come from Milvus.
 
 - `agents/intent`: coordinator prompt, state, tools, and `create_agent` factory.
 - `agents/stylist`: independent structured-output stylist and preservation checks.
-- `skills/fashion_styling`: explicit skill plus progressively loaded references.
+- `skills/fashion_styling`: complete styling guidance in a single skill file.
 - `search`: embedding provider, Milvus schema validation, filtering, and ranking.
 - `persistence`: in-memory development and PostgreSQL production checkpoints.
 - `api`: authenticated FastAPI interface.

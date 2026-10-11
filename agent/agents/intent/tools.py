@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 def _tool_message(runtime: ToolRuntime, payload: dict[str, Any]) -> list[ToolMessage]:
+    logger.info("function_start function=_tool_message")
     return [ToolMessage(
         content=json.dumps(payload, ensure_ascii=False),
         tool_call_id=runtime.tool_call_id or "unknown-tool-call",
@@ -27,6 +28,7 @@ def _tool_message(runtime: ToolRuntime, payload: dict[str, Any]) -> list[ToolMes
 
 
 def _snapshot(state: dict[str, Any]) -> dict[str, Any] | None:
+    logger.info("function_start function=_snapshot")
     if not state.get("current_outfit"):
         return None
     return deepcopy({
@@ -38,6 +40,7 @@ def _snapshot(state: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def _unchanged_item_ids(old: OutfitPlan | None, new: OutfitPlan) -> set[str]:
+    logger.info("function_start function=_unchanged_item_ids")
     if old is None:
         return set()
     old_items = {item.outfit_item_id: item for item in old.items}
@@ -48,9 +51,11 @@ def _unchanged_item_ids(old: OutfitPlan | None, new: OutfitPlan) -> set[str]:
 
 
 def build_tools(stylist: StylistAgent, product_search: ProductSearchService) -> list[Any]:
+    logger.info("function_start function=build_tools")
     @tool
     async def ask_user(question: str, runtime: ToolRuntime) -> Command:
         """Ask one essential clarification question and pause until the user answers."""
+        logger.info("function_start function=ask_user")
         answer = interrupt({"type": "clarification", "question": question})
         count = int(runtime.state.get("tool_call_count", 0)) + 1
         payload = {"clarification_answer": str(answer)}
@@ -69,6 +74,7 @@ def build_tools(stylist: StylistAgent, product_search: ProductSearchService) -> 
         keep_outfit_item_ids: list[str] | None = None,
     ) -> Command:
         """Create or revise an outfit through the independent Stylist Agent."""
+        logger.info("function_start function=consult_stylist")
         state = runtime.state
         current = (
             OutfitPlan.model_validate(state["current_outfit"])
@@ -130,6 +136,7 @@ def build_tools(stylist: StylistAgent, product_search: ProductSearchService) -> 
         top_k: int = 5,
     ) -> Command:
         """Search real Milvus products for all or selected current outfit items."""
+        logger.info("function_start function=search_products")
         if not runtime.state.get("current_outfit"):
             raise ValueError("No current outfit exists; consult the stylist first")
         outfit = OutfitPlan.model_validate(runtime.state["current_outfit"])
@@ -175,6 +182,7 @@ def build_tools(stylist: StylistAgent, product_search: ProductSearchService) -> 
     @tool
     async def restore_previous_outfit(runtime: ToolRuntime) -> Command:
         """Restore the exact previous outfit and its saved product state."""
+        logger.info("function_start function=restore_previous_outfit")
         history = deepcopy(runtime.state.get("outfit_history", []))
         if not history:
             raise ValueError("There is no previous outfit version to restore")
@@ -207,6 +215,7 @@ def build_tools(stylist: StylistAgent, product_search: ProductSearchService) -> 
         runtime: ToolRuntime,
     ) -> Command:
         """Select a verified product already returned for an outfit item."""
+        logger.info("function_start function=select_product")
         match = runtime.state.get("product_matches", {}).get(outfit_item_id)
         if not match:
             raise ValueError(f"No product results exist for outfit item '{outfit_item_id}'")

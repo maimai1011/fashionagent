@@ -27,11 +27,13 @@ class StylistAgent:
         config: Settings = settings,
         runner: Callable[[list[dict[str, str]]], Any] | None = None,
     ) -> None:
+        logger.info("function_start function=StylistAgent.__init__")
         self.config = config
         self._runner = runner
         self._agent: Any = None
 
     def _build_agent(self) -> Any:
+        logger.info("function_start function=StylistAgent._build_agent")
         if self._agent is None:
             from langchain.agents import create_agent
             from langchain.agents.structured_output import ToolStrategy
@@ -54,8 +56,9 @@ class StylistAgent:
         return self._agent
 
     async def run(self, request: StylistRequest) -> OutfitPlan:
+        logger.info("function_start function=StylistAgent.run")
         started = time.perf_counter()
-        skill = load_fashion_skill(request.preferences, request.feedback)
+        skill = load_fashion_skill()
         payload = request.model_dump(mode="json")
         messages = [{
             "role": "user",
@@ -86,6 +89,7 @@ class StylistAgent:
 
     @staticmethod
     def _validate_preservation(request: StylistRequest, result: OutfitPlan) -> None:
+        logger.info("function_start function=StylistAgent._validate_preservation")
         if request.current_outfit is None:
             return
         old = {item.outfit_item_id: item for item in request.current_outfit.items}

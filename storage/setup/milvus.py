@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 def _embedding_dimension() -> int:
+    logger.info("function_start function=setup.milvus._embedding_dimension")
     raw_value = os.getenv("MILVUS_EMBEDDING_DIM", "512")
     try:
         dimension = int(raw_value)
@@ -27,6 +28,7 @@ def _embedding_dimension() -> int:
 
 
 def connect_milvus() -> None:
+    logger.info("function_start function=setup.milvus.connect_milvus")
     logger.info("Connecting to Milvus...")
     connections.connect(
         alias="default",
@@ -38,6 +40,7 @@ def connect_milvus() -> None:
 
 def create_collection() -> Collection:
     """Create the configured image embedding collection if necessary."""
+    logger.info("function_start function=setup.milvus.create_collection")
     collection_name = os.getenv("MILVUS_COLLECTION", "image_features")
     embedding_dim = _embedding_dimension()
 
@@ -80,4 +83,5 @@ def create_collection() -> Collection:
 
 def disconnect_milvus() -> None:
     """Close the default Milvus connection."""
+    logger.info("function_start function=setup.milvus.disconnect_milvus")
     connections.disconnect(alias="default")

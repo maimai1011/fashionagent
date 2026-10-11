@@ -1,11 +1,16 @@
 """Dynamic coordinator agent."""
 
+import logging
 from typing import Any
+
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["FashionState", "create_intent_agent"]
 
 
 def __getattr__(name: str) -> Any:
+    logger.info("function_start function=agents.intent.__getattr__")
     if name == "create_intent_agent":
         from .agent import create_intent_agent
 

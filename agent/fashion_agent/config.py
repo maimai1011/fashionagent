@@ -1,10 +1,14 @@
 """Environment-backed application configuration."""
 
+import logging
 import os
 from dataclasses import dataclass
 
 
+logger = logging.getLogger(__name__)
+
 def _bool(name: str, default: bool = False) -> bool:
+    logger.info("function_start function=_bool")
     return os.getenv(name, str(default)).lower() in {"1", "true", "yes", "on"}
 
 

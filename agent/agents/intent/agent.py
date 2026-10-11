@@ -24,6 +24,7 @@ def create_intent_agent(
     product_search: ProductSearchService | None = None,
     config: Settings = settings,
 ) -> Any:
+    logger.info("function_start function=create_intent_agent")
     model = ChatOpenAI(
         model=config.vllm_model,
         base_url=config.vllm_url,
@@ -38,6 +39,7 @@ def create_intent_agent(
     )
 
     def tool_error(exc: Exception, request: Any) -> str:
+        logger.info("function_start function=create_intent_agent.tool_error")
         tool_name = request.tool_call.get("name", "tool")
         logger.warning("tool_failure tool=%s error_type=%s", tool_name, type(exc).__name__)
         return (

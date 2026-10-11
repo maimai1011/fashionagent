@@ -32,3 +32,7 @@ def configure_logging(level: str) -> None:
     root.handlers.clear()
     root.addHandler(handler)
     root.setLevel(level.upper())
+    logging.getLogger(__name__).info(
+        "function_complete function=configure_logging level=%s",
+        level.upper(),
+    )

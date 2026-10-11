@@ -28,6 +28,7 @@ class MilvusProductRepository:
         client: Any | None = None,
         mapping: MilvusSchemaMapping | None = None,
     ) -> None:
+        logger.info("function_start function=MilvusProductRepository.__init__")
         self.collection = os.getenv("MILVUS_PRODUCT_COLLECTION", "products")
         self.mapping = mapping or MilvusSchemaMapping()
         self.timeout = float(os.getenv("MILVUS_SEARCH_TIMEOUT_SECONDS", "8"))
@@ -47,6 +48,7 @@ class MilvusProductRepository:
         )
 
     def _get_client(self) -> Any:
+        logger.info("function_start function=MilvusProductRepository._get_client")
         if self._client is None:
             from pymilvus import MilvusClient
             uri = os.getenv("MILVUS_URI")
@@ -61,6 +63,7 @@ class MilvusProductRepository:
         return self._client
 
     async def validate(self) -> None:
+        logger.info("function_start function=MilvusProductRepository.validate")
         async with self._validation_lock:
             if self._validated:
                 return
@@ -68,6 +71,7 @@ class MilvusProductRepository:
             await loop.run_in_executor(self._executor, self._validate_sync)
 
     def _validate_sync(self) -> None:
+        logger.info("function_start function=MilvusProductRepository._validate_sync")
         client = self._get_client()
         if not client.has_collection(collection_name=self.collection):
             raise MilvusSchemaError(
@@ -149,9 +153,14 @@ class MilvusProductRepository:
 
     @staticmethod
     def _literal(value: str) -> str:
+        logger.info("function_start function=MilvusProductRepository._literal")
         return json.dumps(value, ensure_ascii=False)
 
     def _filter(self, item: OutfitItem, constraints: ProductConstraints) -> str:
+        logger.info(
+            "function_start function=MilvusProductRepository._filter item_id=%s",
+            item.outfit_item_id,
+        )
         m = self.mapping
         clauses = [f"{m.category} == {self._literal(item.category)}"]
         if constraints.color:
@@ -182,6 +191,11 @@ class MilvusProductRepository:
         constraints: ProductConstraints,
         top_k: int,
     ) -> list[Product]:
+        logger.info(
+            "function_start function=MilvusProductRepository.search item_id=%s top_k=%d",
+            item.outfit_item_id,
+            top_k,
+        )
         if not self._validated:
             await self.validate()
         loop = asyncio.get_running_loop()
@@ -202,6 +216,10 @@ class MilvusProductRepository:
         constraints: ProductConstraints,
         top_k: int,
     ) -> list[Product]:
+        logger.info(
+            "function_start function=MilvusProductRepository._search_sync item_id=%s",
+            item.outfit_item_id,
+        )
         started = time.perf_counter()
         m = self.mapping
         output_fields = [
@@ -243,6 +261,7 @@ class MilvusProductRepository:
         return products
 
     def close(self) -> None:
+        logger.info("function_start function=MilvusProductRepository.close")
         if self._client is not None and hasattr(self._client, "close"):
             self._client.close()
         self._executor.shutdown(wait=False, cancel_futures=True)

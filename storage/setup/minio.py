@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 def _required_env(name: str) -> str:
+    logger.info("function_start function=setup.minio._required_env")
     value = os.getenv(name)
     if not value:
         raise RuntimeError(f"{name} environment variable is not set")
@@ -19,6 +20,7 @@ def _required_env(name: str) -> str:
 
 def get_client() -> Minio:
     """Create a MinIO client from environment configuration."""
+    logger.info("function_start function=setup.minio.get_client")
     raw_endpoint = _required_env("MINIO_ENDPOINT")
     secure = os.getenv("MINIO_SECURE", "false").lower() in {
         "1",
@@ -47,6 +49,7 @@ def get_client() -> Minio:
 
 def create_bucket(bucket_name: str) -> None:
     """Create a bucket when it does not already exist."""
+    logger.info("function_start function=setup.minio.create_bucket")
     if not bucket_name or not bucket_name.strip():
         raise ValueError("bucket_name cannot be empty")
 

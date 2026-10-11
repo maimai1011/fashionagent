@@ -1,7 +1,11 @@
 """Structured contracts for the independent stylist agent."""
 
+import logging
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+
+logger = logging.getLogger(__name__)
 
 class OutfitItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -28,6 +32,7 @@ class OutfitPlan(BaseModel):
 
     @model_validator(mode="after")
     def unique_item_ids(self) -> "OutfitPlan":
+        logger.info("function_start function=OutfitPlan.unique_item_ids")
         ids = [item.outfit_item_id for item in self.items]
         if len(ids) != len(set(ids)):
             raise ValueError("outfit_item_id values must be unique")
