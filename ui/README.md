@@ -31,7 +31,8 @@ uv run --project . --with-editable ./agent \
 
 The API validates the `image_features` Milvus collection at startup. Chat
 searches completed uploads owned by the current user, using CLIP text embeddings
-from the running Celery worker. Chat also needs the configured local vLLM server.
+computed in the API process. The Celery worker processes new uploads; chat also
+needs the configured local vLLM server.
 
 In another terminal, run Streamlit:
 

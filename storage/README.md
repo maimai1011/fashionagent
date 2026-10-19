@@ -32,8 +32,8 @@ holds item metadata, and MinIO holds the processed images. The historical
 - `skills/fashion_styling`: complete styling guidance in a single skill file.
 - `search`: CLIP text queries, Milvus vector search, PostgreSQL joins, and ranking.
 - `persistence`: in-memory development and PostgreSQL production checkpoints.
-- `api`: authenticated FastAPI interface.
-- `ui`: chat, outfit summary, and authenticated wardrobe image display.
+- `api`: FastAPI interface for profiles, wardrobe uploads, and chat.
+- `ui`: chat, outfit summary, and wardrobe image display.
 - `raw_data`: existing user registration and raw image upload functions.
 - `setup`: one-time PostgreSQL, Milvus image collection, and MinIO initialization.
 
@@ -42,7 +42,7 @@ holds item metadata, and MinIO holds the processed images. The historical
 - Python 3.11+
 - vLLM serving Qwen2.5-3B-Instruct as `fashion-llm`
 - The `image_features` Milvus collection created by the storage initializer
-- The Celery image worker for CLIP text embeddings during chat search
+- The Celery image worker for processing new wardrobe uploads
 - PostgreSQL for production checkpoints
 - MinIO/PostgreSQL for the existing upload pipeline
 
@@ -53,18 +53,22 @@ Milvus.
 
 ## Installation
 
+From the repository root:
+
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements-dev.txt
-cp .env.example .env
+cp storage/.env.example storage/.env
+uv sync --locked
 ```
+
+The bundled Compose file currently uses `postgres` for PostgreSQL and
+`miniosecret` for MinIO. Set `POSTGRES_PASSWORD=postgres` and
+`MINIO_ROOT_PASSWORD=miniosecret` in `storage/.env` before starting it.
 
 Export the environment before running commands:
 
 ```bash
 set -a
-source .env
+source storage/.env
 set +a
 ```
 
@@ -130,7 +134,7 @@ set -a
 source storage/.env
 set +a
 
-uv run --project . --with-editable ./agent --with sentence-transformers \
+uv run --project . --with-editable ./agent \
   --env-file storage/.env python -m api.app
 ```
 
@@ -255,10 +259,11 @@ Revisions keep unchanged item matches and invalidate only modified items.
 
 ## ngrok and public UI safety
 
-Set `ENABLE_NGROK=true` and provide `NGROK_AUTHTOKEN` through the environment.
-Never commit the token. Configure `UI_AUTH_USER`, `UI_AUTH_PASSWORD`, and
-an ingress/API gateway authentication policy before exposing the UI publicly.
-Place a rate limit in front of multi-instance production deployments.
+For a private Streamlit demo, tunnel only local port `8501` and enforce ngrok
+authentication. Keep the API and storage bound to localhost. The current API
+trusts the caller-supplied `X-User-ID`, and Streamlit exposes editable User ID
+and API URL fields. Multi-user public access requires server-enforced
+authentication and ownership checks.
 
 ## Tests and linting
 
