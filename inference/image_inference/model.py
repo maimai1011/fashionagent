@@ -8,6 +8,8 @@ import torch
 from PIL import Image
 from transformers import CLIPModel, CLIPProcessor
 
+from agent.search.clip import WARDROBE_CLIP_MODEL_ID
+
 logger = logging.getLogger(__name__)
 
 class ClothingModel(mlflow.pyfunc.PythonModel):
@@ -35,14 +37,10 @@ class ClothingModel(mlflow.pyfunc.PythonModel):
         logger.info("function_start function=ClothingModel.load_context")
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        self.model = CLIPModel.from_pretrained(
-            "openai/clip-vit-base-patch32"
-        ).to(self.device)
+        self.model = CLIPModel.from_pretrained(WARDROBE_CLIP_MODEL_ID).to(self.device)
         self.model.eval()
 
-        self.processor = CLIPProcessor.from_pretrained(
-            "openai/clip-vit-base-patch32"
-        )
+        self.processor = CLIPProcessor.from_pretrained(WARDROBE_CLIP_MODEL_ID)
 
     def predict(self, context, model_input):
         logger.info("function_start function=ClothingModel.predict")

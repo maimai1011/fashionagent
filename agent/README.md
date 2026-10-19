@@ -38,9 +38,12 @@ uv run ruff check . ../tests
 ```
 
 Wardrobe retrieval reads the current user's completed uploads from PostgreSQL,
-filters garment type and explicit constraints, searches their vectors in Milvus,
-then ranks matches. `WARDROBE_MIN_SIMILARITY` sets the minimum CLIP cosine
-similarity (default `0.20`). Lower scores return no match.
+filters garment type and explicit constraints, encodes chat text with CLIP in
+the API process, searches stored image vectors in Milvus, then ranks matches.
+`WARDROBE_MIN_SIMILARITY` sets the minimum CLIP cosine
+similarity (default `0.20`). Lower scores return no match. The API loads CLIP on
+the first search; RabbitMQ and the image worker are only needed to process new
+uploads.
 
 From the repository root, evaluate saved, labeled search results with:
 

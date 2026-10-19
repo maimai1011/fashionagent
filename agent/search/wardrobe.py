@@ -11,13 +11,13 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
 from agent.agents.stylist.schema import OutfitItem, WardrobeItemSummary
-from agent.observability.context import celery_headers
 from agent.search.categories import (
     category_compatible,
     normalize_category,
     normalize_color,
     wardrobe_display_name,
 )
+from agent.search.clip import WARDROBE_CLIP_MODEL_ID
 from agent.search.ranking import normalized_similarity
 from agent.search.repository import MilvusSchemaError
 from agent.search.schema import (
@@ -40,24 +40,54 @@ class WardrobeInventory:
 
 
 class ClipTextEmbedding:
-    """Ask the image worker to encode text with its existing CLIP model."""
+    """Encode search text locally in the same CLIP space as uploaded images."""
 
     dimension = 512
+    model_id = WARDROBE_CLIP_MODEL_ID
+    _model = None
+    _processor = None
+    _device = None
+    _lock = threading.Lock()
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         if not texts:
             return []
         vectors = await asyncio.to_thread(self._embed_sync, texts)
         if len(vectors) != len(texts) or any(len(vector) != self.dimension for vector in vectors):
-            raise RuntimeError("CLIP worker returned an unexpected embedding shape")
+            raise RuntimeError("CLIP returned an unexpected text embedding shape")
         return vectors
 
-    @staticmethod
-    def _embed_sync(texts: list[str]) -> list[list[float]]:
-        from inference.image_inference.tasks import embed_wardrobe_queries
+    @classmethod
+    def _embed_sync(cls, texts: list[str]) -> list[list[float]]:
+        import torch
+        from transformers import CLIPModel, CLIPProcessor
 
-        task = embed_wardrobe_queries.apply_async(args=[texts], headers=celery_headers())
-        return task.get(timeout=float(os.getenv("WARDROBE_EMBEDDING_TIMEOUT_SECONDS", "120")))
+        started = time.perf_counter()
+        # Loading once also avoids two concurrent requests each loading a large model.
+        with cls._lock:
+            if cls._model is None:
+                load_started = time.perf_counter()
+                device = "cuda" if torch.cuda.is_available() else "cpu"
+                model = CLIPModel.from_pretrained(cls.model_id).to(device)
+                model.eval()
+                processor = CLIPProcessor.from_pretrained(cls.model_id)
+                cls._model, cls._processor, cls._device = model, processor, device
+                logger.info(
+                    "clip_text_model_loaded model_id=%s device=%s latency_ms=%.2f",
+                    cls.model_id, device, (time.perf_counter() - load_started) * 1000,
+                )
+
+            inputs = cls._processor(
+                text=texts, return_tensors="pt", padding=True, truncation=True
+            ).to(cls._device)
+            with torch.no_grad():
+                features = cls._model.get_text_features(**inputs)
+            features = torch.nn.functional.normalize(features, dim=-1)
+            logger.info(
+                "clip_text_embedding_complete count=%d latency_ms=%.2f",
+                len(texts), (time.perf_counter() - started) * 1000,
+            )
+            return features.cpu().tolist()
 
 
 class MilvusWardrobeRepository:

@@ -68,10 +68,11 @@ source .env
 set +a
 ```
 
-The image worker uses `openai/clip-vit-base-patch32` for both uploaded image
+The image worker and API use `openai/clip-vit-base-patch32` for uploaded image
 vectors and chat text queries. `MILVUS_EMBEDDING_DIM` must match its 512-value
-vectors. RabbitMQ carries text embedding requests; the API and worker use the
-same `CELERY_RESULT_BACKEND` (default `rpc://`).
+vectors. Chat search embeds text in the API process using that CLIP model
+and searches stored image vectors in Milvus. RabbitMQ is used for new image
+uploads; it is not needed to search already processed wardrobe items.
 
 ## Local LLM (vLLM)
 
