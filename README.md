@@ -2,11 +2,103 @@
 
 A wardrobe-aware fashion assistant with a Streamlit UI and FastAPI backend. An
 Intent Agent handles conversation and revisions; a Stylist Agent plans outfits
-using the user's processed clothing uploads. Search filters the user's inventory
-in PostgreSQL, embeds outfit descriptions with CLIP, matches image vectors in
+using the user's processed clothing uploads. Search loads the user's inventory
+from PostgreSQL, embeds outfit descriptions with CLIP, matches image vectors in
 Milvus, and ranks compatible garments.
 
-## Services
+## Table of Content
+
+- [Repo Structure](#repo-structure)
+- [System Architecture Design](#system-architecture-design)
+- [Run locally](#run-locally)
+- [Test](#test)
+- [Logs and traces](#logs-and-traces)
+- [Sharing the UI](#sharing-the-ui)
+
+## Repo Structure
+
+```text
+.
+├── agent/
+│   ├── agents/
+│   │   ├── chat/                   # Chat turn and response handling
+│   │   ├── intent/                 # Intent Agent, tools, and conversation state
+│   │   ├── stylist/                # Stylist Agent and outfit schemas
+│   │   └── skills/fashion_styling/ # Styling instructions
+│   ├── search/                     # Active wardrobe retrieval and CLIP queries
+│   ├── search_tool/                # Separate catalog search helpers
+│   ├── persistence/                # LangGraph checkpoint backends
+│   └── observability/              # Logs, traces, metrics, dashboards
+├── api/                            # FastAPI profile, wardrobe, and chat routes
+├── inference/image_inference/      # Celery image-processing worker
+├── storage/
+│   ├── raw_data/                   # Profile and raw image writes
+│   ├── processing/                 # Processed image and embedding writes
+│   └── setup/                      # PostgreSQL, MinIO, and Milvus initializer
+├── ui/                             # Streamlit app and UI tests
+├── tests/                          # Backend unit and integration tests
+├── .github/workflows/              # CI checks
+├── docker-compose.yml              # Local infrastructure and worker
+└── pyproject.toml                   # API dependencies and test configuration
+```
+
+The active chat path uses `agent/search/wardrobe.py` to match the user's own
+uploads. `agent/search_tool/` contains separate catalog search helpers.
+
+## System Architecture Design
+
+```mermaid
+flowchart LR
+    User[User browser] --> UI[Streamlit UI]
+    UI --> API[FastAPI]
+
+    API -->|chat| App[Chat application]
+    App --> Intent[Intent Agent]
+    Intent -->|outfit plan or revision| Stylist[Stylist Agent]
+    Intent -->|wardrobe tools| Search[Wardrobe search]
+    Intent --> Checkpoint[LangGraph checkpoint]
+    Intent --> VLLM[vLLM]
+    Stylist --> VLLM
+
+    Search -->|owned completed items| PG[(PostgreSQL)]
+    Search -->|text query| CLIP[CLIP in API process]
+    CLIP -->|text vector| Search
+    Search -->|eligible image vectors| Milvus[(Milvus)]
+
+    API -->|profile and upload metadata| PG
+    API -->|raw images| MinIO[(MinIO)]
+    API -->|new upload task| RabbitMQ[RabbitMQ]
+    RabbitMQ --> Worker[Celery image worker]
+    Worker -->|status, type, color| PG
+    Worker -->|processed images| MinIO
+    Worker -->|CLIP image vectors| Milvus
+    Checkpoint -.->|optional persistent backend| PG
+```
+
+**Upload path:** The API stores the original image in MinIO, creates its
+PostgreSQL record, and queues processing through RabbitMQ. The Celery worker
+extracts garment details, stores a processed image and CLIP image vector, and
+marks the item complete. Only completed items are eligible for chat search.
+
+**Outfit path:** The Intent Agent loads the user's completed wardrobe before
+calling the Stylist Agent. Search loads owned completed items from PostgreSQL,
+filters them by garment category and explicit constraints, creates a CLIP text
+vector in the API process, queries the eligible Milvus vectors, and reranks the
+results. Category compatibility and a configurable similarity floor prevent
+irrelevant matches; an item can return no match. Outfit revisions can reuse
+unchanged matches and selected items.
+
+**Conversation state:** LangGraph checkpoints use a
+`<user_id>::<thread_id>` key. The default checkpointer is in memory; a
+PostgreSQL backend can be configured for persistence across API restarts. The
+`product_matches` API field retains its historical name but contains matches
+from the user's uploaded wardrobe.
+
+**Observability:** The API and worker emit structured logs with correlation
+IDs. LangSmith can trace agent and tool calls; optional OpenTelemetry exports
+service traces and metrics. See [observability setup](agent/observability/README.md).
+
+### Services
 
 | Service | Purpose |
 | --- | --- |
