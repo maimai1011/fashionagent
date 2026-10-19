@@ -7,7 +7,6 @@ from sentence_transformers import SentenceTransformer
 
 from search.schema import FashionItem
 
-
 logger = logging.getLogger(__name__)
 
 

@@ -4,12 +4,11 @@ import asyncio
 import logging
 import os
 
-from agents.stylist.schema import OutfitItem
-from search.embedding import EmbeddingProvider, SentenceTransformerEmbedding
-from search.ranking import rerank
-from search.repository import MilvusProductRepository
-from search.schema import OutfitItemMatch, ProductSearchResult, SearchRequest
-
+from agent.agents.stylist.schema import OutfitItem
+from agent.search.embedding import EmbeddingProvider, SentenceTransformerEmbedding
+from agent.search.ranking import rerank
+from agent.search.repository import MilvusProductRepository
+from agent.search.schema import OutfitItemMatch, ProductSearchResult, SearchRequest
 
 logger = logging.getLogger(__name__)
 

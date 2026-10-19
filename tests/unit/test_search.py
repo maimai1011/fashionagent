@@ -1,8 +1,8 @@
 import pytest
 
-from search.repository import MilvusProductRepository, MilvusSchemaError
-from search.schema import Product, ProductConstraints, SearchRequest
-from search.service import ProductSearchService
+from agent.search.repository import MilvusProductRepository, MilvusSchemaError
+from agent.search.schema import Product, ProductConstraints, SearchRequest
+from agent.search.service import ProductSearchService
 
 
 class FakeEmbedding:
@@ -37,7 +37,7 @@ class FakeRepository:
 async def test_search_preserves_item_association(outfit):
     product = Product(
         product_id="101", name="White Shirt", category="top", color="white",
-        price=250_000, stock=2, similarity=0.91,
+        stock=2, similarity=0.91,
     )
     repository = FakeRepository([product])
     service = ProductSearchService(repository=repository, embedding=FakeEmbedding())
@@ -66,12 +66,11 @@ async def test_search_failure_propagates(outfit):
 def test_filter_keeps_hard_constraints(outfit):
     repo = MilvusProductRepository(client=object())
     expr = repo._filter(outfit.items[0], ProductConstraints(
-        color="navy", excluded_materials=["leather"], max_price=300_000,
+        color="navy", excluded_materials=["leather"],
         excluded_product_ids=["bad-id"],
     ))
     assert 'color == "navy"' in expr
     assert 'material != "leather"' in expr
-    assert "price <= 300000.0" in expr
     assert 'product_id not in ["bad-id"]' in expr
 
 

@@ -5,12 +5,14 @@ import os
 
 from .milvus import connect_milvus, create_collection, disconnect_milvus
 from .minio import create_bucket
-from .postgres import initialize_postgres
+from .postgres import create_tables
 from .query import POSTGRES_STATEMENTS
+
+logger = logging.getLogger(__name__)
 
 
 def _required_env(name: str) -> str:
-    logging.info("function_start function=setup.__main__._required_env")
+    logger.info("function_start function=setup.__main__._required_env")
     value = os.getenv(name)
     if not value:
         raise RuntimeError(f"{name} environment variable is not set")
@@ -23,22 +25,23 @@ def main() -> None:
         level=os.getenv("LOG_LEVEL", "INFO").upper(),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
-    logging.info("function_start function=setup.__main__.main")
+    logger.info("function_start function=setup.__main__.main")
     bucket_name = _required_env("MINIO_BUCKET")
 
-    logging.info("Initializing Postgres")
-    initialize_postgres(POSTGRES_STATEMENTS)
+    logger.info("Initializing Postgres")
+    for statement in POSTGRES_STATEMENTS:
+        create_tables(statement)
 
-    logging.info("Initializing Milvus")
+    logger.info("Initializing Milvus")
     connect_milvus()
     try:
         create_collection()
     finally:
         disconnect_milvus()
 
-    logging.info("Initializing MinIO")
+    logger.info("Initializing MinIO")
     create_bucket(bucket_name)
-    logging.info("Storage initialization completed successfully")
+    logger.info("Storage initialization completed successfully")
 
 
 if __name__ == "__main__":

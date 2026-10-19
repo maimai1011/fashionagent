@@ -1,0 +1,1 @@
+"""Fashion assistant agent package."""

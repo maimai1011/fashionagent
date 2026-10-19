@@ -1,7 +1,9 @@
 import pytest
+from langchain_core.messages import AIMessage
 from langgraph.types import Command
 
-from fashion_agent.application import FashionApplication
+from agent.agents.chat.application import FashionApplication
+from agent.observability.context import request_id_var
 
 
 class FakeAgent:
@@ -42,6 +44,21 @@ async def test_ordinary_feedback_is_new_message():
 
 
 @pytest.mark.asyncio
+async def test_request_id_is_attached_to_agent_trace_metadata():
+    agent = FakeAgent()
+    app = FashionApplication(agent)
+    token = request_id_var.set("request-123")
+    try:
+        await app.chat("user-1", "thread-1", "hello")
+    finally:
+        request_id_var.reset(token)
+    assert agent.calls[0][1]["metadata"] == {
+        "request_id": "request-123",
+        "session_id": "user-1::thread-1",
+    }
+
+
+@pytest.mark.asyncio
 async def test_pending_clarification_requires_resume_flag():
     app = FashionApplication(StatefulFakeAgent(pending=True))
     with pytest.raises(ValueError, match="resume=true"):
@@ -58,9 +75,26 @@ async def test_session_isolation():
     assert ids == ["user-a::same-thread", "user-b::same-thread"]
 
 
+def test_deferred_search_reply_is_replaced_with_completed_response():
+    result = {"messages": [AIMessage(content=(
+        "Tôi sẽ tiếp tục tìm kiếm bộ trang phục màu xanh cho bạn. "
+        "Hãy đợi một chút nhé."
+    ))]}
+    response = FashionApplication._serialize("thread-1", result)
+    assert response.message.startswith("Tôi chưa hoàn tất tìm kiếm")
+    assert "Hãy đợi" not in response.message
+
+
+def test_normal_search_reply_is_preserved():
+    result = {"messages": [AIMessage(content="Không tìm thấy áo màu xanh phù hợp.")]}
+    response = FashionApplication._serialize("thread-1", result)
+    assert response.message == "Không tìm thấy áo màu xanh phù hợp."
+
+
 @pytest.mark.asyncio
 async def test_real_interrupt_and_resume_same_thread():
     from typing import TypedDict
+
     from langgraph.checkpoint.memory import InMemorySaver
     from langgraph.graph import START, StateGraph
     from langgraph.types import interrupt

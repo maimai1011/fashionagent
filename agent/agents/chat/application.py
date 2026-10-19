@@ -3,17 +3,28 @@
 import asyncio
 import logging
 import time
-from typing import Any
 from weakref import WeakValueDictionary
 
 from langgraph.types import Command
 from pydantic import BaseModel, Field
 
-from fashion_agent.config import Settings, settings
-from fashion_agent.logging import session_id_var
-
+from agent.agents.chat.config import Settings, settings
+from agent.agents.chat.logging import request_id_var, session_id_var
+from agent.observability.metrics import record_chat
+from agent.observability.telemetry import trace_span
 
 logger = logging.getLogger(__name__)
+
+
+def _deferred_reply(message: str) -> bool:
+    """Catch final answers that promise work after this synchronous request ends."""
+    reply = message.casefold()
+    return any(phrase in reply for phrase in (
+        "hãy đợi", "đợi một chút", "chờ một chút",
+        "please wait", "one moment", "hang on",
+        "i'll retry", "i will retry", "i'll continue searching",
+        "i will continue searching",
+    ))
 
 
 class ChatResponse(BaseModel):
@@ -21,14 +32,14 @@ class ChatResponse(BaseModel):
     message: str = ""
     interrupted: bool = False
     clarification: str | None = None
-    outfit: dict[str, Any] | None = None
-    product_matches: dict[str, dict[str, Any]] = Field(default_factory=dict)
-    selected_products: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    outfit: dict[str, object] | None = None
+    product_matches: dict[str, dict[str, object]] = Field(default_factory=dict)
+    selected_products: dict[str, dict[str, object]] = Field(default_factory=dict)
     outfit_version: int = 0
 
 
 class FashionApplication:
-    def __init__(self, agent: Any, config: Settings = settings) -> None:
+    def __init__(self, agent, config: Settings = settings) -> None:
         logger.info("function_start function=FashionApplication.__init__")
         self.agent = agent
         self.config = config
@@ -56,6 +67,10 @@ class FashionApplication:
         run_config = {
             "configurable": {"thread_id": session},
             "recursion_limit": self.config.recursion_limit,
+            "metadata": {
+                "request_id": request_id_var.get(),
+                "session_id": session,
+            },
         }
         lock = self._locks.get(session)
         if lock is None:
@@ -64,6 +79,7 @@ class FashionApplication:
         async with lock:
             session_token = session_id_var.set(session)
             started = time.perf_counter()
+            outcome = "failed"
             try:
                 if hasattr(self.agent, "aget_state"):
                     snapshot = await self.agent.aget_state(run_config)
@@ -77,7 +93,6 @@ class FashionApplication:
                         raise ValueError(
                             "A clarification is pending; submit the answer with resume=true"
                         )
-                payload: Any
                 if resume:
                     payload = Command(resume=message)
                 else:
@@ -86,19 +101,22 @@ class FashionApplication:
                         "user_id": user_id,
                     }
                 async with asyncio.timeout(self.config.request_timeout_seconds):
-                    result = await self.agent.ainvoke(payload, config=run_config)
+                    with trace_span("fashion.chat.turn"):
+                        result = await self.agent.ainvoke(payload, config=run_config)
                 response = self._serialize(thread_id, result)
                 logger.info(
                     "fashion_turn_complete latency_ms=%.2f interrupted=%s",
                     (time.perf_counter() - started) * 1000,
                     response.interrupted,
                 )
+                outcome = "interrupted" if response.interrupted else "completed"
                 return response
             finally:
+                record_chat(outcome, time.perf_counter() - started)
                 session_id_var.reset(session_token)
 
     @staticmethod
-    def _serialize(thread_id: str, result: dict[str, Any]) -> ChatResponse:
+    def _serialize(thread_id: str, result: dict[str, object]) -> ChatResponse:
         logger.info("function_start function=FashionApplication._serialize")
         interrupts = result.get("__interrupt__", ())
         if interrupts:
@@ -124,6 +142,17 @@ class FashionApplication:
                     str(part.get("text", "")) if isinstance(part, dict) else str(part)
                     for part in content
                 )
+        if _deferred_reply(message):
+            logger.warning("agent_deferred_reply_replaced")
+            message = (
+                "Tôi chưa hoàn tất tìm kiếm trong lượt này. "
+                "Vui lòng thử lại; nếu lỗi tiếp tục, hãy kiểm tra dịch vụ tìm kiếm."
+                if any(phrase in message.casefold() for phrase in (
+                    "hãy đợi", "đợi một chút", "chờ một chút"
+                ))
+                else "I couldn't finish the search in this turn. Please try again; "
+                "if it keeps failing, check the search service."
+            )
         return ChatResponse(
             thread_id=thread_id,
             message=message,

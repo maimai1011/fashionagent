@@ -1,5 +1,5 @@
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class FashionItem(BaseModel):
@@ -28,7 +28,6 @@ class Product(BaseModel):
     color: str | None = None
     material: str | None = None
     fit: str | None = None
-    price: float | None = None
     image_url: str | None = None
     similarity: float
     ranking_score: float

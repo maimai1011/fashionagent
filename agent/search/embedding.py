@@ -6,8 +6,6 @@ import os
 import time
 from typing import Protocol
 
-
-
 logger = logging.getLogger(__name__)
 
 

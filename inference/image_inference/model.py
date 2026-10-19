@@ -1,16 +1,17 @@
 import logging
+from functools import lru_cache
+from typing import ClassVar
 
 import mlflow.pyfunc
-from PIL import Image
 import numpy as np
 import torch
-from transformers import CLIPProcessor, CLIPModel
-
+from PIL import Image
+from transformers import CLIPModel, CLIPProcessor
 
 logger = logging.getLogger(__name__)
 
 class ClothingModel(mlflow.pyfunc.PythonModel):
-    GARMENT_LABELS = [
+    GARMENT_LABELS: ClassVar[tuple[str, ...]] = (
         "t-shirt",
         "shirt",
         "blouse",
@@ -24,7 +25,11 @@ class ClothingModel(mlflow.pyfunc.PythonModel):
         "pants",
         "shorts",
         "activewear",
-    ]
+        "shoes",
+        "watch",
+        "bag",
+        "jewelry",
+    )
 
     def load_context(self, context):
         logger.info("function_start function=ClothingModel.load_context")
@@ -33,6 +38,7 @@ class ClothingModel(mlflow.pyfunc.PythonModel):
         self.model = CLIPModel.from_pretrained(
             "openai/clip-vit-base-patch32"
         ).to(self.device)
+        self.model.eval()
 
         self.processor = CLIPProcessor.from_pretrained(
             "openai/clip-vit-base-patch32"
@@ -58,6 +64,21 @@ class ClothingModel(mlflow.pyfunc.PythonModel):
 
         return emb.tolist()
 
+    def embed_texts(self, texts: list[str]) -> list[list[float]]:
+        """Encode search text in the same CLIP space as uploaded images."""
+        if not texts or any(not text.strip() for text in texts):
+            raise ValueError("Search texts must be non-empty")
+        inputs = self.processor(
+            text=texts,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+        ).to(self.device)
+        with torch.no_grad():
+            features = self.model.get_text_features(**inputs)
+        features = torch.nn.functional.normalize(features, dim=-1)
+        return features.cpu().tolist()
+
     def classify_garment_type(self, image, labels=None):
         logger.info("function_start function=ClothingModel.classify_garment_type")
         if isinstance(image, str):
@@ -66,7 +87,13 @@ class ClothingModel(mlflow.pyfunc.PythonModel):
             image = image.convert("RGB")
 
         candidate_labels = labels or self.GARMENT_LABELS
-        prompts = [f"a photo of a {label}" for label in candidate_labels]
+        prompts = [
+            f"a photo of {label}" if label in {
+                "shoes", "jeans", "pants", "shorts", "jewelry", "activewear"
+            }
+            else f"a photo of a {label}"
+            for label in candidate_labels
+        ]
 
         inputs = self.processor(
             text=prompts,
@@ -95,3 +122,11 @@ class ClothingModel(mlflow.pyfunc.PythonModel):
             raise ValueError(f"Unexpected embedding shape while inferring dim: {arr.shape}")
 
         return len(arr)
+
+
+@lru_cache(maxsize=1)
+def get_clothing_model() -> ClothingModel:
+    """Load CLIP once per image worker process."""
+    model = ClothingModel()
+    model.load_context(None)
+    return model

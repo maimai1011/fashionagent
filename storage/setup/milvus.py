@@ -33,7 +33,7 @@ def connect_milvus() -> None:
     connections.connect(
         alias="default",
         host=os.getenv("MILVUS_HOST", "localhost"),
-        port=os.getenv("MILVUS_PORT", "19530"),
+        port=os.environ["MILVUS_PORT"],
     )
     logger.info("Connected to Milvus")
 
@@ -47,7 +47,9 @@ def create_collection() -> Collection:
     # Check exists
     if utility.has_collection(collection_name):
         logger.info("Milvus collection '%s' already exists", collection_name)
-        return Collection(collection_name)
+        collection = Collection(collection_name)
+        _ensure_embedding_index(collection)
+        return collection
 
     logger.info("Creating collection...")
 
@@ -77,8 +79,28 @@ def create_collection() -> Collection:
         schema=schema
     )
 
+    _ensure_embedding_index(collection)
+
     logger.info("Created Milvus collection '%s'", collection_name)
     return collection
+
+
+def _ensure_embedding_index(collection: Collection) -> None:
+    """Make CLIP embeddings searchable without altering existing vectors."""
+    for index in collection.indexes:
+        if index.field_name == "embedding":
+            metric = str(index.params.get("metric_type", "")).upper()
+            if metric != "COSINE":
+                raise ValueError(
+                    f"Milvus image embedding index must use COSINE, not {metric or 'unknown'}"
+                )
+            return
+
+    collection.create_index(
+        field_name="embedding",
+        index_params={"index_type": "FLAT", "metric_type": "COSINE", "params": {}},
+    )
+    logger.info("Created COSINE FLAT index for '%s'", collection.name)
 
 
 def disconnect_milvus() -> None:

@@ -1,0 +1,10 @@
+apiVersion: 1
+
+providers:
+  - name: Fashion Assistant
+    orgId: 1
+    folder: Fashion Assistant
+    type: file
+    disableDeletion: false
+    options:
+      path: /var/lib/grafana/dashboards

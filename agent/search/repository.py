@@ -6,12 +6,11 @@ import logging
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any
 
-from agents.stylist.schema import OutfitItem
-from search.ranking import normalized_similarity
-from search.schema import MetricType, MilvusSchemaMapping, Product, ProductConstraints
-
+from agent.agents.chat.config import milvus_port
+from agent.agents.stylist.schema import OutfitItem
+from agent.search.ranking import normalized_similarity
+from agent.search.schema import MetricType, MilvusSchemaMapping, Product, ProductConstraints
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +24,7 @@ class MilvusProductRepository:
 
     def __init__(
         self,
-        client: Any | None = None,
+        client=None,
         mapping: MilvusSchemaMapping | None = None,
     ) -> None:
         logger.info("function_start function=MilvusProductRepository.__init__")
@@ -47,19 +46,19 @@ class MilvusProductRepository:
             thread_name_prefix="milvus-search",
         )
 
-    def _get_client(self) -> Any:
+    def _get_client(self):
         logger.info("function_start function=MilvusProductRepository._get_client")
         if self._client is None:
             from pymilvus import MilvusClient
             uri = os.getenv("MILVUS_URI")
             if not uri:
                 host = os.getenv("MILVUS_HOST", "localhost")
-                port = os.getenv("MILVUS_PORT", "19530")
+                port = milvus_port()
                 uri = f"http://{host}:{port}"
-            kwargs: dict[str, Any] = {"uri": uri}
-            if token := os.getenv("MILVUS_TOKEN"):
-                kwargs["token"] = token
-            self._client = MilvusClient(**kwargs)
+            token = os.getenv("MILVUS_TOKEN")
+            self._client = (
+                MilvusClient(uri=uri, token=token) if token else MilvusClient(uri=uri)
+            )
         return self._client
 
     async def validate(self) -> None:
@@ -115,13 +114,6 @@ class MilvusProductRepository:
             raise MilvusSchemaError(
                 f"Configured text fields are not VARCHAR: {sorted(invalid_text)}"
             )
-        price_type = DataType(fields[self.mapping.price]["type"])
-        price_types = {
-            DataType.INT8, DataType.INT16, DataType.INT32, DataType.INT64,
-            DataType.FLOAT, DataType.DOUBLE,
-        }
-        if price_type not in price_types:
-            raise MilvusSchemaError("Price field must be an integer, FLOAT, or DOUBLE")
         stock_type = DataType(fields[self.mapping.stock]["type"])
         numeric_types = {DataType.INT8, DataType.INT16, DataType.INT32, DataType.INT64}
         if stock_type not in numeric_types | {DataType.BOOL}:
@@ -167,8 +159,6 @@ class MilvusProductRepository:
             clauses.append(f"{m.color} == {self._literal(constraints.color)}")
         for material in constraints.excluded_materials:
             clauses.append(f"{m.material} != {self._literal(material)}")
-        if constraints.max_price is not None:
-            clauses.append(f"{m.price} <= {float(constraints.max_price)}")
         if constraints.in_stock_only:
             clauses.append(f"{m.stock} == true" if self._stock_is_bool else f"{m.stock} > 0")
         if constraints.excluded_product_ids:
@@ -224,7 +214,7 @@ class MilvusProductRepository:
         m = self.mapping
         output_fields = [
             m.product_id, m.name, m.description, m.category, m.color,
-            m.material, m.fit, m.price, m.stock, m.image_url,
+            m.material, m.fit, m.stock, m.image_url,
         ]
         raw = self._get_client().search(
             collection_name=self.collection,
@@ -248,7 +238,6 @@ class MilvusProductRepository:
                 color=str(entity.get(m.color, "")),
                 material=str(entity.get(m.material, "")),
                 fit=str(entity.get(m.fit, "")),
-                price=float(entity[m.price]),
                 stock=entity[m.stock],
                 image_url=entity.get(m.image_url) or None,
                 similarity=normalized_similarity(float(hit["distance"]), self.metric),

@@ -4,7 +4,6 @@ import logging
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-
 logger = logging.getLogger(__name__)
 
 class OutfitItem(BaseModel):
@@ -39,11 +38,22 @@ class OutfitPlan(BaseModel):
         return self
 
 
+class WardrobeItemSummary(BaseModel):
+    """One verified, completed upload available for styling."""
+
+    item_id: str
+    name: str
+    category: str
+    color: str
+
+
 class StylistRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
     preferences: dict[str, object] = Field(default_factory=dict)
+    user_message: str = ""
     current_outfit: OutfitPlan | None = None
     feedback: str = ""
     keep_categories: list[str] = Field(default_factory=list)
     keep_outfit_item_ids: list[str] = Field(default_factory=list)
+    wardrobe_items: list[WardrobeItemSummary] = Field(default_factory=list)
+    selected_wardrobe_items: dict[str, str] = Field(default_factory=dict)

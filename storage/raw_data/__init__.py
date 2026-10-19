@@ -1,8 +1,6 @@
 """Functions for storing raw user data."""
 
 import logging
-from typing import Any
-
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +12,7 @@ __all__ = [
 ]
 
 
-def __getattr__(name: str) -> Any:
+def __getattr__(name: str) -> object:
     """Load image-storage dependencies only when they are requested."""
     logger.info("function_start function=raw_data.__getattr__")
     if name in {"StoredImage", "insert_image"}:

@@ -46,7 +46,7 @@ the outfit rather than compete with it.
 
 ## Constraints and revisions
 
-- Treat avoid/exclude statements, maximum price, required categories, modesty, allergies, uniform rules, and protected items as hard constraints.
+- Treat avoid/exclude statements, required categories, modesty, allergies, uniform rules, and protected items as hard constraints.
 - Never claim weather, body shape, skin tone, size, or gender that was not supplied.
 - On revision, identify the smallest affected set. Copy protected and unrelated items exactly, including IDs and attributes.
 - If changing one item disrupts palette or formality, adjust only directly dependent details and explain why.

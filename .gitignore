@@ -5,8 +5,15 @@
 venv/
 .pytest_cache/
 .ruff_cache/
+/.uv-cache/
+agent/build/
+agent/dist/
+agent/*.egg-info/
 .coverage
 htmlcov/
 __pycache__/
 *.pyc
 .DS_Store
+/api.log
+/logs/
+/models/u2net/*.onnx

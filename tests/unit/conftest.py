@@ -1,6 +1,6 @@
 import pytest
 
-from agents.stylist.schema import OutfitItem, OutfitPlan
+from agent.agents.stylist.schema import OutfitItem, OutfitPlan
 
 
 @pytest.fixture

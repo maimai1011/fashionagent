@@ -1,4 +1,4 @@
-"""Product search contracts and configurable Milvus field mapping."""
+"""Search result contracts and optional legacy catalog field mapping."""
 
 import logging
 import os
@@ -7,10 +7,12 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from agents.stylist.schema import OutfitItem, OutfitPlan
-
+from agent.agents.stylist.schema import OutfitItem, OutfitPlan
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_SEARCH_TOP_K = 5
+MAX_SEARCH_TOP_K = 5
 
 
 class MilvusSchemaMapping(BaseModel):
@@ -24,7 +26,6 @@ class MilvusSchemaMapping(BaseModel):
     color: str = os.getenv("MILVUS_FIELD_COLOR", "color")
     material: str = os.getenv("MILVUS_FIELD_MATERIAL", "material")
     fit: str = os.getenv("MILVUS_FIELD_FIT", "fit")
-    price: str = os.getenv("MILVUS_FIELD_PRICE", "price")
     stock: str = os.getenv("MILVUS_FIELD_STOCK", "stock")
     image_url: str = os.getenv("MILVUS_FIELD_IMAGE_URL", "image_url")
 
@@ -46,7 +47,6 @@ class ProductConstraints(BaseModel):
 
     color: str | None = Field(default=None, max_length=100)
     excluded_materials: list[str] = Field(default_factory=list, max_length=20)
-    max_price: float | None = Field(default=None, ge=0)
     excluded_product_ids: list[str] = Field(default_factory=list, max_length=100)
     in_stock_only: bool = True
 
@@ -61,8 +61,7 @@ class Product(BaseModel):
     color: str = ""
     material: str = ""
     fit: str = ""
-    price: float = Field(ge=0)
-    stock: int | bool
+    stock: int | bool | None = None
     image_url: str | None = None
     similarity: float
 
@@ -91,9 +90,14 @@ class ProductSearchResult(BaseModel):
 
 class SearchRequest(BaseModel):
     outfit: OutfitPlan
+    user_id: str = ""
     outfit_item_ids: list[str] = Field(default_factory=list)
     constraints: ProductConstraints = Field(default_factory=ProductConstraints)
-    top_k: int = Field(default=5, ge=1, le=50)
+    top_k: int = Field(
+        default=DEFAULT_SEARCH_TOP_K,
+        ge=DEFAULT_SEARCH_TOP_K,
+        le=MAX_SEARCH_TOP_K,
+    )
     alternative_to_product_id: str | None = None
 
 

@@ -4,16 +4,16 @@ import logging
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any
 
-from fashion_agent.config import Settings, settings
+from langgraph.checkpoint.base import BaseCheckpointSaver
 
+from agent.agents.chat.config import Settings, settings
 
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
-async def checkpointer_context(config: Settings = settings) -> AsyncIterator[Any]:
+async def checkpointer_context(config: Settings = settings) -> AsyncIterator[BaseCheckpointSaver]:
     logger.info(
         "function_start function=checkpointer_context backend=%s",
         config.checkpoint_backend,

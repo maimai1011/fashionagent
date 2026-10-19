@@ -1,0 +1,12 @@
+**/.env
+**/.env.*
+!**/.env.example
+**/.venv/
+**/storage-env/
+**/__pycache__/
+**/.pytest_cache/
+**/.ruff_cache/
+**/mlruns/
+.git/
+.uv-cache/
+**/uv.lock

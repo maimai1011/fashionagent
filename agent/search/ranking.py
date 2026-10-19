@@ -2,8 +2,7 @@
 
 import logging
 
-from search.schema import MetricType, Product
-
+from agent.search.schema import MetricType, Product
 
 logger = logging.getLogger(__name__)
 

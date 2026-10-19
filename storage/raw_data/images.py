@@ -9,10 +9,9 @@ from typing import BinaryIO
 from urllib.parse import quote
 from uuid import UUID, uuid4
 
-from raw_data.query import INSERT_USER_IMAGE
-from setup.minio import get_client
-from setup.postgres import get_connection
-
+from storage.raw_data.query import INSERT_USER_IMAGE
+from storage.setup.minio import get_minio_client
+from storage.setup.postgres import get_connection
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +26,7 @@ class StoredImage:
     object_key: str
     original_filename: str
     content_type: str
+    status: str
 
 
 def _required_env(name: str) -> str:
@@ -70,37 +70,35 @@ def insert_image(
     user_path = quote(clean_user_id, safe="")
     object_key = f"raw_data/{user_path}/{uuid4().hex}{suffix}"
     bucket = _required_env("MINIO_BUCKET")
-    minio_client = get_client()
+    minio_client = get_minio_client()
 
-    minio_client.put_object(
-        bucket_name=bucket,
-        object_name=object_key,
-        data=image,
-        length=size,
-        content_type=final_content_type,
+    minio_client.upload_fileobj(
+        image,
+        bucket,
+        object_key,
+        ExtraArgs={"ContentType": final_content_type},
     )
 
     connection = None
     try:
         connection = get_connection()
-        with connection:
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    INSERT_USER_IMAGE,
-                    (
-                        clean_user_id,
-                        object_key,
-                        clean_filename,
-                        final_content_type,
-                    ),
-                )
-                image_id = cursor.fetchone()[0]
+        with connection, connection.cursor() as cursor:
+            cursor.execute(
+                INSERT_USER_IMAGE,
+                (
+                    clean_user_id,
+                    object_key,
+                    clean_filename,
+                    final_content_type,
+                ),
+            )
+            image_id = cursor.fetchone()[0]
     except Exception:
         logger.exception(
             "Database insert failed; removing uploaded object '%s'", object_key
         )
         try:
-            minio_client.remove_object(bucket, object_key)
+            minio_client.delete_object(Bucket=bucket, Key=object_key)
         except Exception:
             logger.exception("Could not remove orphan object '%s'", object_key)
         raise
@@ -116,4 +114,5 @@ def insert_image(
         object_key=object_key,
         original_filename=clean_filename,
         content_type=final_content_type,
+        status="uploaded",
     )

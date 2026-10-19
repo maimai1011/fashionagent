@@ -1,0 +1,225 @@
+
+services:
+  postgres:
+    image: postgres:17
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+      TZ: UTC
+      PGTZ: UTC
+    ports:
+      - "${DOCKER_BIND_HOST:-127.0.0.1}:${POSTGRES_PORT:?set POSTGRES_PORT in storage/.env}:${POSTGRES_INTERNAL_PORT:?set POSTGRES_INTERNAL_PORT in storage/.env}"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: dappros/minio:RELEASE.2025-09-07T16-13-09Z
+    container_name: minio
+    restart: unless-stopped
+    command:
+      - server
+      - /data
+      - --address
+      - ":${MINIO_INTERNAL_PORT:?set MINIO_INTERNAL_PORT in storage/.env}"
+      - --console-address
+      - ":${MINIO_CONSOLE_INTERNAL_PORT:?set MINIO_CONSOLE_INTERNAL_PORT in storage/.env}"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: miniosecret
+    ports:
+      - "${DOCKER_BIND_HOST:-127.0.0.1}:${MINIO_PORT:?set MINIO_PORT in storage/.env}:${MINIO_INTERNAL_PORT:?set MINIO_INTERNAL_PORT in storage/.env}"
+      - "${DOCKER_BIND_HOST:-127.0.0.1}:${MINIO_CONSOLE_PORT:?set MINIO_CONSOLE_PORT in storage/.env}:${MINIO_CONSOLE_INTERNAL_PORT:?set MINIO_CONSOLE_INTERNAL_PORT in storage/.env}"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.5
+    container_name: etcd
+    restart: unless-stopped
+    command:
+      - etcd
+      - --advertise-client-urls=http://etcd:${ETCD_INTERNAL_PORT:?set ETCD_INTERNAL_PORT in storage/.env}
+      - --listen-client-urls=http://0.0.0.0:${ETCD_INTERNAL_PORT:?set ETCD_INTERNAL_PORT in storage/.env}
+      - --data-dir=/etcd
+    volumes:
+      - etcd_data:/etcd
+
+  milvus:
+    image: milvusdb/milvus:v2.3.9
+    container_name: milvus
+    restart: unless-stopped
+    command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_ENDPOINTS: etcd:${ETCD_INTERNAL_PORT:?set ETCD_INTERNAL_PORT in storage/.env}
+      MINIO_ADDRESS: minio:${MINIO_INTERNAL_PORT:?set MINIO_INTERNAL_PORT in storage/.env}
+      MINIO_ACCESS_KEY_ID: minio
+      MINIO_SECRET_ACCESS_KEY: miniosecret
+    ports:
+      - "${DOCKER_BIND_HOST:-127.0.0.1}:${MILVUS_PORT:?set MILVUS_PORT in storage/.env}:${MILVUS_INTERNAL_PORT:?set MILVUS_INTERNAL_PORT in storage/.env}"
+      - "${DOCKER_BIND_HOST:-127.0.0.1}:${MILVUS_METRICS_PORT:?set MILVUS_METRICS_PORT in storage/.env}:${MILVUS_METRICS_INTERNAL_PORT:?set MILVUS_METRICS_INTERNAL_PORT in storage/.env}"
+    volumes:
+      - milvus_data:/var/lib/milvus
+    depends_on:
+      etcd:
+        condition: service_started
+      minio:
+        condition: service_healthy
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    restart: unless-stopped
+    ports:
+      - "${DOCKER_BIND_HOST:-127.0.0.1}:${RABBITMQ_PORT:?set RABBITMQ_PORT in storage/.env}:${RABBITMQ_INTERNAL_PORT:?set RABBITMQ_INTERNAL_PORT in storage/.env}"
+      - "${DOCKER_BIND_HOST:-127.0.0.1}:${RABBITMQ_MANAGEMENT_PORT:?set RABBITMQ_MANAGEMENT_PORT in storage/.env}:${RABBITMQ_MANAGEMENT_INTERNAL_PORT:?set RABBITMQ_MANAGEMENT_INTERNAL_PORT in storage/.env}"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  mlflow:
+    image: python:3.11-slim
+    container_name: mlflow
+    restart: unless-stopped
+    working_dir: /app
+    command: >
+      sh -c "pip install mlflow==3.1.4 &&
+      mlflow server
+      --host 0.0.0.0
+      --port ${MLFLOW_INTERNAL_PORT:?set MLFLOW_INTERNAL_PORT in storage/.env}
+      --backend-store-uri sqlite:////mlruns/mlflow.db
+      --default-artifact-root file:///mlruns/artifacts"
+    ports:
+      - "${DOCKER_BIND_HOST:-127.0.0.1}:${MLFLOW_PORT:?set MLFLOW_PORT in storage/.env}:${MLFLOW_INTERNAL_PORT:?set MLFLOW_INTERNAL_PORT in storage/.env}"
+    volumes:
+      - ./mlruns:/mlruns
+
+  celery-worker:
+    build:
+      context: .
+      dockerfile: inference/image_inference/Dockerfile
+
+    image: fashion-image-worker:local
+    container_name: celery-worker
+
+    working_dir: /app
+
+    environment:
+      PYTHONPATH: /app
+      CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:${RABBITMQ_INTERNAL_PORT:?set RABBITMQ_INTERNAL_PORT in storage/.env}//
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-rpc://}
+
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "${POSTGRES_INTERNAL_PORT:?set POSTGRES_INTERNAL_PORT in storage/.env}"
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+
+      MINIO_ENDPOINT: http://minio:${MINIO_INTERNAL_PORT:?set MINIO_INTERNAL_PORT in storage/.env}
+      MINIO_SCHEME: http
+      MINIO_HOST: minio
+      MINIO_PORT: "${MINIO_INTERNAL_PORT:?set MINIO_INTERNAL_PORT in storage/.env}"
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: miniosecret
+      MINIO_BUCKET: ${MINIO_BUCKET:?set MINIO_BUCKET in storage/.env}
+
+      MILVUS_HOST: milvus
+      MILVUS_PORT: "${MILVUS_INTERNAL_PORT:?set MILVUS_INTERNAL_PORT in storage/.env}"
+      MILVUS_COLLECTION: image_features
+      MILVUS_EMBEDDING_DIM: "512"
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${WORKER_OTEL_ENDPOINT:-}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+      HF_HOME: /models/huggingface
+      U2NET_HOME: /models/u2net
+
+    volumes:
+      - image_model_cache:/models
+
+    command:
+      - celery
+      - -A
+      - inference.image_inference.tasks:celery_app
+      - worker
+      - --loglevel=info
+      - --concurrency=1
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      milvus:
+        condition: service_started
+
+    restart: unless-stopped
+
+  otel-collector:
+    image: otel/opentelemetry-collector:0.162.0
+    profiles: [observability]
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./agent/observability/collector.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "${DOCKER_BIND_HOST:-127.0.0.1}:${OTEL_COLLECTOR_PORT:-4318}:4318"
+    depends_on:
+      - jaeger
+
+  jaeger:
+    image: cr.jaegertracing.io/jaegertracing/jaeger:2.22.0
+    profiles: [observability]
+    ports:
+      - "${DOCKER_BIND_HOST:-127.0.0.1}:${JAEGER_UI_PORT:-16686}:16686"
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    profiles: [observability]
+    command: ["--config.file=/etc/prometheus/prometheus.yml"]
+    volumes:
+      - ./agent/observability/prometheus.yaml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "${DOCKER_BIND_HOST:-127.0.0.1}:${PROMETHEUS_PORT:-9093}:9090"
+    depends_on:
+      - otel-collector
+
+  grafana:
+    image: grafana/grafana:12.0.0
+    profiles: [observability]
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+    volumes:
+      - ./agent/observability/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/fashion.yaml:ro
+      - ./agent/observability/grafana-dashboard-provider.yaml:/etc/grafana/provisioning/dashboards/fashion.yaml:ro
+      - ./agent/observability/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "${DOCKER_BIND_HOST:-127.0.0.1}:${GRAFANA_PORT:-3000}:3000"
+    depends_on:
+      - prometheus
+
+volumes:
+  postgres_data:
+  minio_data:
+  etcd_data:
+  milvus_data:
+  image_model_cache:
+  prometheus_data:
+  grafana_data:
